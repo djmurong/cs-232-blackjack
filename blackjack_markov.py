@@ -76,6 +76,25 @@ def play_hand(payout_bj=1.5):
     else:
         path.append(6); return -1.0, path
 
+# ── Transition matrix ───────────────────────────────────────────────
+def build_transition_matrix(n_hands=1_000_000, payout_bj=1.5, seed=42):
+    """
+    Estimate transition matrix empirically from simulation.
+    T[i,j] = fraction of times state j followed state i.
+    """
+    random.seed(seed)
+    counts = np.zeros((9, 9))
+
+    for _ in range(n_hands):
+        _, path = play_hand(payout_bj)
+        for k in range(len(path) - 1):
+            counts[path[k], path[k+1]] += 1
+
+    # Normalize each row (rows with no transitions stay zero)
+    row_sums = counts.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1   # avoid divide by zero
+    return counts / row_sums
+
 # ── Simulation ────────────────────────────────────────────────────
 def simulate(n=1_000_000, payout_bj=1.5, seed=42):
     """
@@ -103,12 +122,18 @@ def simulate(n=1_000_000, payout_bj=1.5, seed=42):
     ev         = total_profit / n
     state_freq = state_counts / state_counts.sum()
     return ev, state_freq, outcome_counts
-
+    
 # ── Run and print ─────────────────────────────────────────────────
 STATE_NAMES = ['Start','Hit','Stand','Bust','BJ','Win','Lose','Push','BJ_Win']
 N = 1_000_000
 
 print(f"Running {N:,} simulated hands...\n")
+
+print('\nEstimating transition matrix from simulation...')
+T = build_transition_matrix()
+print('\n  ' + ''.join('%9s' % n for n in STATE_NAMES))
+for i, row in enumerate(T):
+    print('%-9s' % STATE_NAMES[i] + ''.join('%9.4f' % v for v in row))
 
 for label, payout in [("3:2  (payout = 1.5)", 1.5), ("6:5  (payout = 1.2)", 1.2)]:
     ev, freq, counts = simulate(n=N, payout_bj=payout)
